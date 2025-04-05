@@ -116,57 +116,60 @@ def format_polynomial(poly):
 
     return result.replace("+-", "-").replace("-1x", "-x").replace("+1x", "+x").replace("--", "-")
 
-poly_dict = {}
-storeResults = [] # 儲存各個運算的結果
+def main():
+    poly_dict = {}
+    storeResults = [] # 儲存各個運算的結果
 
-for _ in range(2): # 讀兩個多項式
-    poly_input = input().strip()
-    name, expr = poly_input.split("=")
-    poly_name = name.strip().split("(")[0]
-    poly_dict[poly_name] = parse_String(expr.strip())
+    for _ in range(2): # 讀兩個多項式
+        poly_input = input().strip()
+        name, expr = poly_input.split("=")
+        poly_name = name.strip().split("(")[0]
+        poly_dict[poly_name] = parse_String(expr.strip())
 
-    #print(name, expr, poly_name, poly_dict[poly_name])
-    # ex: p1(x) = x^3+2x^2+3x+5
-    # name = p1(x), expr = x^3+2x^2+3x+5, poly_name = p1, poly_dict[poly_name] = {3: 1, 2: 2, 1: 3, 0: 5}
+        #print(name, expr, poly_name, poly_dict[poly_name])
+        # ex: p1(x) = x^3+2x^2+3x+5
+        # name = p1(x), expr = x^3+2x^2+3x+5, poly_name = p1, poly_dict[poly_name] = {3: 1, 2: 2, 1: 3, 0: 5}
 
-while True:
-    command = input().strip()
+    while True:
+        command = input().strip()
 
-    if command == "0": break
-    # a-zA-Z_ : 支援字母與底線作為多項式名稱, \d: 數字, \(\d+\): (數字), [+-]?: 數字為正或負
-    elif re.match(r'[a-zA-Z_]+\d+\([+-]?\d+\)', command.strip()): # 計算
-        poly_name = command.strip().split("(")[0]
-        #\(([+-]?\d+)\): 找到括號中的數字，例如(2)會取出2, .group(1): 取出第一個括號裡的內容
-        x = int(re.search(r'\(([+-]?\d+)\)', command).group(1))
+        if command == "0": break
+        # a-zA-Z_ : 支援字母與底線作為多項式名稱, \d: 數字, \(\d+\): (數字), [+-]?: 數字為正或負
+        elif re.match(r'[a-zA-Z_]+\d+\([+-]?\d+\)', command.strip()): # 計算
+            poly_name = command.strip().split("(")[0]
+            #\(([+-]?\d+)\): 找到括號中的數字，例如(2)會取出2, .group(1): 取出第一個括號裡的內容
+            x = int(re.search(r'\(([+-]?\d+)\)', command).group(1))
 
-        if poly_name in poly_dict: storeResults.append(f"{poly_name}({x}) = {horner(poly_dict[poly_name], x)}")
-        else: storeResults.append(f"Error: 多項式 {poly_name}(x) 未定義")
+            if poly_name in poly_dict: storeResults.append(f"{poly_name}({x}) = {horner(poly_dict[poly_name], x)}")
+            else: storeResults.append(f"Error: 多項式 {poly_name}(x) 未定義")
 
-    # ([a-zA-Z_]+\d*\([xX]\)): 第一個多項式名稱（如 y1(x), \s*: 任意數量的空格, ([\+\-\*/]): 運算符號：加、減、乘、除
-    elif re.match(r'([a-zA-Z_]+\d*\([xX]\))\s*([\+\-\*/])\s*([a-zA-Z_]+\d*\([xX]\))', command):  # 運算
-        match = re.match(r'([a-zA-Z_]+\d*\([xX]\))\s*([\+\-\*/])\s*([a-zA-Z_]+\d*\([xX]\))', command)
-        poly1, op, poly2 = match.groups()
+        # ([a-zA-Z_]+\d*\([xX]\)): 第一個多項式名稱（如 y1(x), \s*: 任意數量的空格, ([\+\-\*/]): 運算符號：加、減、乘、除
+        elif re.match(r'([a-zA-Z_]+\d*\([xX]\))\s*([\+\-\*/])\s*([a-zA-Z_]+\d*\([xX]\))', command):  # 運算
+            match = re.match(r'([a-zA-Z_]+\d*\([xX]\))\s*([\+\-\*/])\s*([a-zA-Z_]+\d*\([xX]\))', command)
+            poly1, op, poly2 = match.groups()
 
-        poly1_key = poly1.strip().split("(")[0]
-        poly2_key = poly2.strip().split("(")[0]
+            poly1_key = poly1.strip().split("(")[0]
+            poly2_key = poly2.strip().split("(")[0]
 
-        if poly1_key not in poly_dict or poly2_key not in poly_dict:
-            if poly1_key not in poly_dict and poly2_key not in poly_dict: storeResults.append(f"Error: 未定義多項式 {poly1} 及 {poly2}")
-            elif poly2_key not in poly_dict: storeResults.append(f"Error: 未定義多項式 {poly2}")
-            elif poly1_key not in poly_dict: storeResults.append(f"Error: 未定義多項式 {poly1}")
+            if poly1_key not in poly_dict or poly2_key not in poly_dict:
+                if poly1_key not in poly_dict and poly2_key not in poly_dict: storeResults.append(f"Error: 未定義多項式 {poly1} 及 {poly2}")
+                elif poly2_key not in poly_dict: storeResults.append(f"Error: 未定義多項式 {poly2}")
+                elif poly1_key not in poly_dict: storeResults.append(f"Error: 未定義多項式 {poly1}")
 
-            continue
+                continue
 
-        p1 = poly_dict[poly1_key]
-        p2 = poly_dict[poly2_key]
+            p1 = poly_dict[poly1_key]
+            p2 = poly_dict[poly2_key]
 
-        if op == '+': storeResults.append(f"{poly1_key}(x) + {poly2_key}(x) = {format_polynomial(add(p1, p2))}")
-        elif op == '-': storeResults.append(f"{poly1_key}(x) - {poly2_key}(x) = {format_polynomial(Subtraction(p1, p2))}")
-        elif op == '*': storeResults.append(f"{poly1_key}(x) * {poly2_key}(x) = {format_polynomial(multiply(p1, p2))}")
-        elif op == '/': storeResults.append(f"{poly1_key}(x) / {poly2_key}(x) = {format_polynomial(divide(p1, p2))}")
+            if op == '+': storeResults.append(f"{poly1_key}(x) + {poly2_key}(x) = {format_polynomial(add(p1, p2))}")
+            elif op == '-': storeResults.append(f"{poly1_key}(x) - {poly2_key}(x) = {format_polynomial(Subtraction(p1, p2))}")
+            elif op == '*': storeResults.append(f"{poly1_key}(x) * {poly2_key}(x) = {format_polynomial(multiply(p1, p2))}")
+            elif op == '/': storeResults.append(f"{poly1_key}(x) / {poly2_key}(x) = {format_polynomial(divide(p1, p2))}")
 
-for result in storeResults: # 依序印出結果
-    print(result)
+    for result in storeResults: # 依序印出結果
+        print(result)
 
-#total_time = time.time() - start_time
-#print(total_time)
+    #total_time = time.time() - start_time
+    #print(f"所花時間: {total_time}")
+
+main()
