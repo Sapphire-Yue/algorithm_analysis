@@ -1,20 +1,20 @@
 import copy
-def turn_bfs(matrix, queue):
-    """確定各位置是否能與箱子轉彎，把死路給封住"""
+def pre_bfs(matrix, queue):
+    """確定各位置是否能與箱子轉彎，不能轉彎的結構將被封住，並把整條死路給封住"""
     next = [(1, 0), (-1, 0), (0, 1), (0, -1)]
     next_pos = set()
     for cur in queue:
         count = 0
         for i in next:
-             # 如果有牆壁，需計算該位置的牆壁數量，若為3則代表該位置無法與箱子一同轉彎
+            # 如果有牆壁，需計算該位置的牆壁數量，若總和為 3 則代表該位置無法與箱子一同轉彎
             x = cur[0] + i[0]
             y = cur[1] + i[1]
             if x < 0 or y < 0 or x >= len(matrix) or y >= len(matrix[0]): 
-                # count += 1
+                count += 1
                 continue
             elif matrix[x][y] == '*' or matrix[x][y] == 'T' : 
                 if matrix[x][y] == 'T':
-                    # 若目標位置後面還有路徑可走
+                    # 若目標位置後面還有路徑可走，需繼續搜尋
                     for j in next:
                         x2 = x + j[0]
                         y2 = y + j[1]
@@ -22,31 +22,31 @@ def turn_bfs(matrix, queue):
                         elif matrix[x2][y2] == '.': next_pos.add((x2, y2))
                 continue
 
-            if matrix[x][y] == '#': 
+            if matrix[x][y] == '#': #若遇到牆壁，計算數量
                 count += 1
                 continue
             
-            if matrix[x][y] != 'S': matrix[x][y] = '*'
+            if matrix[x][y] != 'S': matrix[x][y] = '*'  #該節點可走入
             next_pos.add((x, y))
 
         if count == 3 and matrix[cur[0]][cur[1]] == '*':
-            matrix[cur[0]][cur[1]] = '.'
+            matrix[cur[0]][cur[1]] = '.'    #封路結構
             
 
     if ( next_pos == set() ):
         return
-    turn_bfs(matrix, next_pos)
+    pre_bfs(matrix, next_pos)
 
+    # 將整條死路給封住
     for cur in queue:
         count = 0
         for i in next:
             x = cur[0] + i[0]
             y = cur[1] + i[1]
             if x < 0 or y < 0 or x >= len(matrix) or y >= len(matrix[0]): 
-                # count += 1
+                count += 1
                 continue
             if matrix[x][y] == '#' or matrix[x][y] == '.': 
-                # 如果有牆壁，需計算該位置的牆壁數量，若為3則代表該位置無法與箱子一同轉彎
                 count += 1
         if count != 3 or matrix[cur[0]][cur[1]] == 'S' or matrix[cur[0]][cur[1]] == 'B' or matrix[cur[0]][cur[1]] == 'T': continue
         matrix[cur[0]][cur[1]] = '.'
@@ -54,6 +54,8 @@ def turn_bfs(matrix, queue):
 
 
 def find_next_step(matrix, index, end, route):
+    """人在箱子可移動的下一步"""
+    """若走到目標，則回傳路徑"""
     
     next = [(1, 0), (-1, 0), (0, 1), (0, -1)]
     next_pos = set()
@@ -79,6 +81,8 @@ def find_next_step(matrix, index, end, route):
     return next_pos
 
 def bfs(matrix, queue, end, count = 0, route = {}):
+    """人在箱子可移動的最短路徑"""
+    """若走到目標，則回傳路徑"""
     if not queue: return
     
     next_pos = set()
@@ -172,6 +176,7 @@ def get_path(matrix, box_path, cur):
     before = box_path[0]
     path += {before}
     for p in box_path[1:]:
+        dictionary = dict()
         if p[0] - before[0] != dirction[0] or p[1] - before[1] != dirction[1]:
             cur = (before[0] - dirction[0], before[1] - dirction[1])
             dirction = (p[0] - before[0], p[1] - before[1])
@@ -239,8 +244,9 @@ while (r, c) != (0, 0):
 
     original = copy.deepcopy(matrix)
     # 確定人是否能與箱子轉彎
-    turn_bfs(matrix, {start})
+    pre_bfs(matrix, {start})
 
+    #將處理好的地圖作為箱子移動的地圖
     for i in range (0, r):
         for j in range (0, c):
             if matrix[i][j] == '.':
@@ -250,10 +256,11 @@ while (r, c) != (0, 0):
     
     matrix = original
 
+    #將處理好的地圖作為人移動的地圖
     for i in range (0, r):
         for j in range (0, c):
             if box_matrix[i][j] == '#' and original[i][j] != 'S':
-                original[i][j] = '#'
+                matrix[i][j] = '#'
 
     print("Maze #{}".format(num))
     if box_path == None:
