@@ -107,7 +107,11 @@ def bfs(matrix, queue, end, count = 0, route = {}):
         while temp[-1] in route:
             temp.append(route[temp[-1]])
         temp.reverse()
-        road.append(temp)
+        if road != [] and len(road[0]) > len(temp):
+            road = []
+            road.append(temp)
+        elif road == []:
+            road.append(temp)
 
     if len(road) > 0: return road
     elif len(next_pos) == 0: return
