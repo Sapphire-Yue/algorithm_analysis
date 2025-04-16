@@ -23,7 +23,7 @@ def changeFormat(poly_str): # 解析字串，轉換為字典形式 {次方: 係�
             # 因為只需要次方跟係數，且'^'不會用到，所以用'_'來取代
             coef, _, exp = term.partition('^') 
             # 沒有'^'，代表次方為1
-            if not exp: exp = 1
+            if not exp: exp = 1 # 代表exp是空字串
             else: exp = int(exp)
 
             coef = coef.replace('x', '')
@@ -44,8 +44,10 @@ def horner(poly, x): # 使用 Horner's Rule 計算多項式函數值
     # ex: 3x² + 2x - 5 -> ((3)x + 2)x - 5
     sorted_exps = sorted(poly.keys(), reverse=True) # 把所有的次方排序(從大到小)
     result = 0
-    for exp in sorted_exps:
-        result = result * x + poly[exp]
+
+    for i in range (sorted_exps[0], -1, -1):
+        result = result * x
+        if(i in poly): result += poly[i]
     return result
 
 def add(p1, p2): # 計算兩個多項式的和
