@@ -237,8 +237,6 @@ while (r, c) != (0, 0):
     if ( r > 20 or r < 1 ) or ( c > 20 or c < 1 ):
         raise ValueError("Input ERROR")
 
-    print("row:", r)
-    print("column:", c)
     matrix = list()
     box_matrix = list()
 
