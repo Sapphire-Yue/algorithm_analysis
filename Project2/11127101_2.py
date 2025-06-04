@@ -1,3 +1,8 @@
+# 演算法分析機測
+# 學號: 11127101 / 11127103 / 11127126
+# 姓名: 藍至奕 / 王芃穎 / 黃柏寧
+# 中原大學資訊工程系
+
 import heapq
 from collections import defaultdict
 
