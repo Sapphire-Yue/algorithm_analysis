@@ -95,7 +95,7 @@ if __name__ == "__main__":
     direction = input("請輸入拼貼方向 (1)水平 (2)垂直 : ").strip()
 
     # 輸入重疊比例
-    percent = input("請輸入重疊比例 (%) : ").strip()
+    percent = int(input("請輸入重疊比例 (%) : ").strip())
     overlap = int((percent/100) * (img.shape[1] if direction == '1' else img.shape[0]))
 
     # 執行拼貼
