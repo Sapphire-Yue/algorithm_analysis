@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 import heapq
 import time 
 
-start_time = time.time()
-
 def split_image_to_tiles(image_path, tile_width=120, tile_height=120):
     """
     將圖片切割成多個小塊，每塊大小為 tile_width x tile_height。
@@ -77,9 +75,57 @@ def extract_tile_features(tiles):
         })
     return features
 
+# --- 對齊邊緣特徵 shape ---
+def crop_to_same_shape(x1, x2):
+    """
+    將兩個特徵矩陣裁剪到相同的形狀。
+    :param x1: 第一個特徵矩陣
+    :param x2: 第二個特徵矩陣
+    :return: 裁剪後的兩個特徵矩陣
+    """
+    h = min(x1.shape[0], x2.shape[0])
+    w = min(x1.shape[1], x2.shape[1])
+    return x1[:h, :w], x2[:h, :w]
+
+# --- 單點 vs 上中下三點（取最小） ---
+def fast_flexible_pixel_match(edge1, edge2):
+    """
+    將兩個邊緣特徵進行快速的單點 vs 上中下三點比對，取最小差異。
+    :param edge1: 第一個邊緣特徵 (H, C)
+    :param edge2: 第二個邊緣特徵 (H, C)
+    :return: 平均最小差異
+    """
+    h = edge1.shape[0]
+    pad = np.pad(edge2, ((1, 1), (0, 0)), mode='edge')  # 上中下 pad
+    # 每個 row 對應三種 row: 上中下
+    rolled = np.stack([
+        pad[y:y + h] for y in range(3)
+    ])  # shape: (3, H, C)
+
+    diff = np.linalg.norm(rolled - edge1[None, :, :], axis=2)  # shape: (3, H)
+    min_diff = np.min(diff, axis=0)  # shape: (H,)
+    return np.mean(min_diff)
+
+# --- 邊緣摘要 ---
+def summarize_edge_by_mean(edge):
+    if len(edge.shape) == 3:
+        return np.mean(edge, axis=1)  # (H, C)
+    else:
+        return np.mean(edge, axis=1, keepdims=True)  # (H, 1)
+
+def mean_vector_diff(vec1, vec2):
+    return np.mean(np.linalg.norm(vec1 - vec2, axis=1))
 
 # --- 邊緣形狀匹配（Canny） ---
 def compute_canny_shape_diff(pic1, pic2, mode='col', edge_width=3):
+    """
+    計算兩張圖片在指定邊緣寬度下的 Canny 邊緣差異。
+    :param pic1: 第一張圖片
+    :param pic2: 第二張圖片
+    :param mode: 'col' 表示比較左右邊緣，'row' 表示比較上下邊緣
+    :param edge_width: 邊緣寬度
+    :return: 邊緣差異的平均值
+    """
     g1 = cv2.cvtColor(pic1, cv2.COLOR_BGR2GRAY)
     g2 = cv2.cvtColor(pic2, cv2.COLOR_BGR2GRAY)
 
@@ -95,37 +141,7 @@ def compute_canny_shape_diff(pic1, pic2, mode='col', edge_width=3):
     diff = np.mean(np.abs(e1.astype(np.float32) - e2.astype(np.float32))) / 255.0
     return diff
 
-# --- 對齊邊緣特徵 shape ---
-def crop_to_same_shape(x1, x2):
-    h = min(x1.shape[0], x2.shape[0])
-    w = min(x1.shape[1], x2.shape[1])
-    return x1[:h, :w], x2[:h, :w]
-
-# --- 單點 vs 上中下三點（取最小） ---
-def fast_flexible_pixel_match(edge1, edge2):
-    h = edge1.shape[0]
-    pad = np.pad(edge2, ((1, 1), (0, 0)), mode='edge')  # 上中下 pad
-    # 每個 row 對應三種 row: 上中下
-    rolled = np.stack([
-        pad[y:y + h] for y in range(3)
-    ])  # shape: (3, H, C)
-
-    diff = np.linalg.norm(rolled - edge1[None, :, :], axis=2)  # shape: (3, H)
-    min_diff = np.min(diff, axis=0)  # shape: (H,)
-    return np.mean(min_diff)
-
-
-# --- 邊緣摘要 ---
-def summarize_edge_by_mean(edge):
-    if len(edge.shape) == 3:
-        return np.mean(edge, axis=1)  # (H, C)
-    else:
-        return np.mean(edge, axis=1, keepdims=True)  # (H, 1)
-
-def mean_vector_diff(vec1, vec2):
-    return np.mean(np.linalg.norm(vec1 - vec2, axis=1))
-
-# --- 特徵歐式距離計算（加速版） ---
+# --- 特徵歐式距離計算 ---
 def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False, weight_config=None):
     pic1_lab = feat1['lab']
     pic2_lab = feat2['lab']
@@ -175,18 +191,6 @@ def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False,
             y1 = pic2_ycrcb[:edge_width, :, :]
             y2 = pic1_ycrcb[-edge_width:, :, :]
 
-    if weight_config is None:
-        weight_config = {
-            'lab': 0.3,
-            'gray': 0.0,
-            'sobel': 0.1,
-            'gradient_angle': 0.2,
-            'hsv': 0.1,
-            'ycrcb': 0.1,
-            'gradient_heatmap': 0.0,
-            'canny_shape': 0.0
-        }
-
     a1, a2 = crop_to_same_shape(a1, a2)
     g1, g2 = crop_to_same_shape(g1, g2)
     h1, h2 = crop_to_same_shape(h1, h2)
@@ -220,15 +224,30 @@ def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False,
     return final_score
 
 # --- 雙向歐式距離平均（提升穩定性） ---
-def compute_symmetric_distance(feat1, feat2, mode='col', edge_width=1, weight_config=None, alpha=0.0):
+def compute_symmetric_distance(feat1, feat2, mode='col', edge_width=1, weight_config=None, alpha=0):
+    """
+    計算兩個特徵矩陣之間的對稱距離，考慮邊緣特徵的方向性。
+    :param feat1: 第一個特徵矩陣
+    :param feat2: 第二個特徵矩陣
+    :param mode: 'col' 表示比較左右邊緣，'row' 表示比較上下邊緣
+    :param edge_width: 邊緣寬度，用於計算邊緣特徵
+    :param weight_config: 權重配置字典，用於調整各種特徵的影響
+    :param alpha: 用於調整非對稱性影響的係數
+    :return: 對稱距離的平均值
+    """
     d1 = compute_edge_features(feat1, feat2, mode=mode, edge_width=edge_width, reverse=False, weight_config=weight_config)
     d2 = compute_edge_features(feat1, feat2, mode=mode, edge_width=edge_width, reverse=True, weight_config=weight_config)
     asymmetry = abs(d1 - d2)
     return (d1 + d2) / 2 + alpha * asymmetry
 
-
-# --- 重構 compute_distance_matrices 使用雙向距離與一致性懲罰 ---
 def compute_distance_matrices(features, edge_width=1, weight_config=None):
+    """
+    計算特徵矩陣之間的歐式距離矩陣。
+    :param features: 特徵列表，每個元素是包含多種顏色空間的字典
+    :param edge_width: 邊緣寬度，用於計算邊緣特徵
+    :param weight_config: 權重配置字典，用於調整各種特徵的影響
+    :return: 右邊距離矩陣和下邊距離矩陣
+    """
     n = len(features)
     dist_matrix_right = np.full((n, n), np.inf)
     dist_matrix_bottom = np.full((n, n), np.inf)
@@ -247,7 +266,6 @@ def compute_distance_matrices(features, edge_width=1, weight_config=None):
             )
 
     return dist_matrix_right, dist_matrix_bottom
-
 
 # === Prims 拼圖重建（允許上下左右擴展，並動態追蹤可用邊界） ===
 def prims_puzzle_reconstruct(dist_right, dist_bottom, num_rows, num_cols):
@@ -336,6 +354,8 @@ def prims_puzzle_reconstruct(dist_right, dist_bottom, num_rows, num_cols):
 
 
 if __name__ == '__main__':
+
+    start_time = time.time()
     # 步驟 1：讀入與切割
     picture = input("請輸入影像檔: ")
     tiles, num_rows, num_cols, tile_h, tile_w = split_image_to_tiles(picture)
@@ -348,20 +368,20 @@ if __name__ == '__main__':
         'lab': 0.25,
         'gray': 0.0,
         'sobel': 0.1,
-        'gradient_angle': 0.2,
+        'gradient_angle': 0.1,
         'hsv': 0.15,
         'ycrcb': 0.1,
         'canny_shape': 0.2,
-        'gradient_heatmap': 0.0
+        'gradient_heatmap': 0.1
     }
 
-    # 可調參數
+    # 計算右邊與下邊的距離矩陣
     dist_right, dist_bottom = compute_distance_matrices(features, edge_width=1, weight_config=weight_config)
 
-    # 步驟 5：重構拼圖位置
+    # 步驟 3：重構拼圖位置
     positions = prims_puzzle_reconstruct(dist_right, dist_bottom, num_rows, num_cols)
 
-    # 步驟 6：輸出拼圖結果
+    # 步驟 4：輸出拼圖結果
     save_reconstructed_image(tiles, positions, tile_h, tile_w, picture.replace('.bmp', '_result.bmp'))
 
     total_time = time.time() - start_time
