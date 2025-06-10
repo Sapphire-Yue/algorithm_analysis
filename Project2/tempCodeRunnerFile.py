@@ -30,9 +30,6 @@ def build_huffman_tree(freq_map):
     return heap[0] # 回傳root
 
 def build_huffman_codes(node, preNum='', code_map=None):
-    if code_map is None:
-        code_map = {}
-        
     if node:
         if node.ch is not None:  # 是葉節點(字元都會在葉節點)
             code_map[node.ch] = preNum
