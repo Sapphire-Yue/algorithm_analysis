@@ -1,9 +1,11 @@
+# 演算法分析機測
+# 學號: 11127101 / 11127103 / 11127126
+# 姓名: 藍至奕 / 王芃穎 / 黃柏寧
+# 中原大學資訊工程系
+
 import cv2
 import numpy as np
-import os
-import matplotlib.pyplot as plt
 import heapq
-import time 
 
 def split_image_to_tiles(image_path, tile_width=120, tile_height=120):
     """
@@ -58,19 +60,17 @@ def save_reconstructed_image(tiles, positions, tile_h, tile_w, filename):
 def extract_tile_features(tiles):
     """
     對所有 tile 預先轉換為多種顏色空間，避免重複轉換，回傳一個 list of dict
-    每個 dict 包含: BGR, Gray, Lab, HSV, YCrCb
+    每個 dict 包含: BGR, Gray, Lab, YCrCb
     """
     features = []
     for tile in tiles:
         gray = cv2.cvtColor(tile, cv2.COLOR_BGR2GRAY)
         lab = cv2.cvtColor(tile, cv2.COLOR_BGR2LAB)
-        hsv = cv2.cvtColor(tile, cv2.COLOR_BGR2HSV)
         ycrcb = cv2.cvtColor(tile, cv2.COLOR_BGR2YCrCb)
         features.append({
             'bgr': tile,
             'gray': gray,
             'lab': lab,
-            'hsv': hsv,
             'ycrcb': ycrcb
         })
     return features
@@ -116,39 +116,12 @@ def summarize_edge_by_mean(edge):
 def mean_vector_diff(vec1, vec2):
     return np.mean(np.linalg.norm(vec1 - vec2, axis=1))
 
-# --- 邊緣形狀匹配（Canny） ---
-def compute_canny_shape_diff(pic1, pic2, mode='col', edge_width=3):
-    """
-    計算兩張圖片在指定邊緣寬度下的 Canny 邊緣差異。
-    :param pic1: 第一張圖片
-    :param pic2: 第二張圖片
-    :param mode: 'col' 表示比較左右邊緣，'row' 表示比較上下邊緣
-    :param edge_width: 邊緣寬度
-    :return: 邊緣差異的平均值
-    """
-    g1 = cv2.cvtColor(pic1, cv2.COLOR_BGR2GRAY)
-    g2 = cv2.cvtColor(pic2, cv2.COLOR_BGR2GRAY)
-
-    if mode == 'col':
-        edge1 = g1[:, -edge_width:]
-        edge2 = g2[:, :edge_width]
-    else:
-        edge1 = g1[-edge_width:, :]
-        edge2 = g2[:edge_width, :]
-
-    e1 = cv2.Canny(edge1, 50, 150)
-    e2 = cv2.Canny(edge2, 50, 150)
-    diff = np.mean(np.abs(e1.astype(np.float32) - e2.astype(np.float32))) / 255.0
-    return diff
-
 # --- 特徵歐式距離計算 ---
 def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False, weight_config=None):
     pic1_lab = feat1['lab']
     pic2_lab = feat2['lab']
     pic1_gray = feat1['gray']
     pic2_gray = feat2['gray']
-    pic1_hsv = feat1['hsv']
-    pic2_hsv = feat2['hsv']
     pic1_ycrcb = feat1['ycrcb']
     pic2_ycrcb = feat2['ycrcb']
 
@@ -158,8 +131,6 @@ def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False,
             a2 = pic2_lab[:, :edge_width, :]
             g1 = pic1_gray[:, -edge_width:]
             g2 = pic2_gray[:, :edge_width]
-            h1 = pic1_hsv[:, -edge_width:, :]
-            h2 = pic2_hsv[:, :edge_width, :]
             y1 = pic1_ycrcb[:, -edge_width:, :]
             y2 = pic2_ycrcb[:, :edge_width, :]
         else:
@@ -167,8 +138,6 @@ def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False,
             a2 = pic1_lab[:, -edge_width:, :]
             g1 = pic2_gray[:, :edge_width]
             g2 = pic1_gray[:, -edge_width:]
-            h1 = pic2_hsv[:, :edge_width, :]
-            h2 = pic1_hsv[:, -edge_width:, :]
             y1 = pic2_ycrcb[:, :edge_width, :]
             y2 = pic1_ycrcb[:, -edge_width:, :]
     else:
@@ -177,8 +146,6 @@ def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False,
             a2 = pic2_lab[:edge_width, :, :]
             g1 = pic1_gray[-edge_width:, :]
             g2 = pic2_gray[:edge_width, :]
-            h1 = pic1_hsv[-edge_width:, :, :]
-            h2 = pic2_hsv[:edge_width, :, :]
             y1 = pic1_ycrcb[-edge_width:, :, :]
             y2 = pic2_ycrcb[:edge_width, :, :]
         else:
@@ -186,23 +153,19 @@ def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False,
             a2 = pic1_lab[-edge_width:, :, :]
             g1 = pic2_gray[:edge_width, :]
             g2 = pic1_gray[-edge_width:, :]
-            h1 = pic2_hsv[:edge_width, :, :]
-            h2 = pic1_hsv[-edge_width:, :, :]
             y1 = pic2_ycrcb[:edge_width, :, :]
             y2 = pic1_ycrcb[-edge_width:, :, :]
 
     a1, a2 = crop_to_same_shape(a1, a2)
     g1, g2 = crop_to_same_shape(g1, g2)
-    h1, h2 = crop_to_same_shape(h1, h2)
     y1, y2 = crop_to_same_shape(y1, y2)
 
     # ---- Lab / YCrCb 用精緻比對 ----
     lab_diff = fast_flexible_pixel_match(a1.reshape(-1, a1.shape[-1]), a2.reshape(-1, a2.shape[-1]))  # shape: (H, C)
     ycrcb_diff = fast_flexible_pixel_match(y1.reshape(-1, y1.shape[-1]), y2.reshape(-1, y2.shape[-1]))
 
-    # ---- HSV / Gray 用快速均值摘要比對 ----
+    # ---- Gray 用快速均值摘要比對 ----
     gray_diff = mean_vector_diff(summarize_edge_by_mean(g1), summarize_edge_by_mean(g2))
-    hsv_diff = mean_vector_diff(summarize_edge_by_mean(h1), summarize_edge_by_mean(h2))
 
     sobel1_x = cv2.Sobel(g1, cv2.CV_64F, 1, 0, ksize=3)
     sobel1_y = cv2.Sobel(g1, cv2.CV_64F, 0, 1, ksize=3)
@@ -218,13 +181,12 @@ def compute_edge_features(feat1, feat2, mode='col', edge_width=3, reverse=False,
         weight_config['gray'] * gray_diff +
         weight_config['sobel'] * sobel_diff +
         weight_config['gradient_angle'] * angle_diff +
-        weight_config['hsv'] * hsv_diff +
         weight_config['ycrcb'] * ycrcb_diff
     )
     return final_score
 
 # --- 雙向歐式距離平均（提升穩定性） ---
-def compute_symmetric_distance(feat1, feat2, mode='col', edge_width=1, weight_config=None, alpha=0):
+def compute_symmetric_distance(feat1, feat2, mode='col', edge_width=1, weight_config=None, alpha=0.3):
     """
     計算兩個特徵矩陣之間的對稱距離，考慮邊緣特徵的方向性。
     :param feat1: 第一個特徵矩陣
@@ -355,7 +317,6 @@ def prims_puzzle_reconstruct(dist_right, dist_bottom, num_rows, num_cols):
 
 if __name__ == '__main__':
 
-    start_time = time.time()
     # 步驟 1：讀入與切割
     picture = input("請輸入影像檔: ")
     tiles, num_rows, num_cols, tile_h, tile_w = split_image_to_tiles(picture)
@@ -365,14 +326,11 @@ if __name__ == '__main__':
 
     # 步驟 2：計算歐式距離矩陣
     weight_config = {
-        'lab': 0.25,
+        'lab': 0.3,
         'gray': 0.0,
-        'sobel': 0.1,
-        'gradient_angle': 0.1,
-        'hsv': 0.15,
-        'ycrcb': 0.1,
-        'canny_shape': 0.2,
-        'gradient_heatmap': 0.1
+        'sobel': 0.2,
+        'gradient_angle': 0.2,
+        'ycrcb': 0.3,
     }
 
     # 計算右邊與下邊的距離矩陣
@@ -383,6 +341,3 @@ if __name__ == '__main__':
 
     # 步驟 4：輸出拼圖結果
     save_reconstructed_image(tiles, positions, tile_h, tile_w, picture.replace('.bmp', '_result.bmp'))
-
-    total_time = time.time() - start_time
-    print(total_time)
